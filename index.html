@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hanabi - Test Connessione</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0b0b14;color:#fff;font-family:sans-serif;padding:20px;min-height:100vh}
+h1{color:#f0c040;font-size:1.5rem;margin-bottom:10px}
+button{padding:12px 20px;font-size:16px;border:none;border-radius:8px;background:#f0c040;color:#000;font-weight:bold;margin:5px;min-height:44px}
+input{padding:12px;font-size:16px;border:1px solid #333;border-radius:8px;background:#1a1a2e;color:#fff;width:200px;margin:5px}
+#log{margin-top:15px;padding:10px;background:#1a1a2e;border-radius:8px;font-size:13px;line-height:1.6;min-height:200px;white-space:pre-wrap}
+.ok{color:#2eb870}.err{color:#e83650}.ld{color:#f0c040}
+</style>
+</head>
+<body>
+<h1>Hanabi - Debug</h1>
+<div>
+<input type="text" id="name" placeholder="Nome" value="Giocatore"/>
+<button type="button" onclick="crea()">CREA STANZA</button>
+</div>
+<div style="margin-top:10px">
+<input type="text" id="code" placeholder="Codice" style="text-transform:uppercase"/>
+<button type="button" onclick="unisciti()">UNISCITI</button>
+</div>
+<div id="log"></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+var peer,room,isHost=false,connections={};
+function log(msg,cls){document.getElementById('log').innerHTML+='<span class="'+(cls||'')+'">'+(new Date().toLocaleTimeString())+' '+msg+'</span>\n'}
+
+function crea(){
+  room=Math.random().toString(36).substr(2,4).toUpperCase();
+  log('Creo stanza: '+room,'ld');
+  log('Creo Peer con ID: hb'+room,'ld');
+
+  try{
+    peer=new Peer('hb'+room,{host:'0.peerjs.com',secure:true,port:443,debug:2});
+  }catch(e){log('ERRORE creazione Peer: '+e.message,'err');return}
+
+  log('Peer creato, attendo open...','ld');
+
+  peer.on('open',function(id){
+    log('CONNESSO! Peer ID: '+id,'ok');
+    log('STANZA: '+room+' - Condividi questo codice!','ok');
+  });
+  peer.on('connection',function(conn){
+    log('Qualcuno si connette...','ld');
+    conn.on('open',function(){
+      log('GIOCATORE CONNESSO!','ok');
+      conn.on('data',function(d){log('Ricevuto: '+JSON.stringify(d),'ok')});
+      conn.send({type:'welcome',msg:'Benvenuto!'});
+    });
+  });
+  peer.on('error',function(e){log('ERRORE: '+e.type+' - '+e.message,'err')});
+  peer.on('close',function(){log('Peer chiuso','err')});
+  peer.on('disconnected',function(){log('Peer disconnesso dal server','err')});
+}
+
+function unisciti(){
+  room=document.getElementById('code').value.trim().toUpperCase();
+  if(!room){log('Inserisci codice!','err');return}
+  log('Mi connetto, cerco stanza: '+room,'ld');
+
+  try{
+    peer=new Peer(undefined,{host:'0.peerjs.com',secure:true,port:443,debug:2});
+  }catch(e){log('ERRORE: '+e.message,'err');return}
+
+  peer.on('open',function(id){
+    log('Connesso al server. Mio ID: '+id,'ok');
+    log('Cerco hb'+room+'...','ld');
+    var conn=peer.connect('hb'+room,{reliable:true});
+    conn.on('open',function(){
+      log('CONNESSO ALLA STANZA!','ok');
+      conn.send({type:'join',name:document.getElementById('name').value});
+      conn.on('data',function(d){log('Ricevuto: '+JSON.stringify(d),'ok')});
+    });
+    conn.on('error',function(e){log('Errore conn: '+e,'err')});
+    conn.on('close',function(){log('Connessione chiusa','err')});
+  });
+  peer.on('error',function(e){log('ERRORE: '+e.type+' - '+e.message,'err')});
+}
+</script>
+</body>
+</html>
